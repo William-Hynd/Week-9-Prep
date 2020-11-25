@@ -1,0 +1,98 @@
+---
+title: "Week 9 Prep"
+author: "William Hynd"
+date: "25/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Install packages
+install.packages("caret")
+install.packages('e1071', dependencies=TRUE)
+library(tidyverse)
+library(caret)
+library(GGally)
+library(palmerpenguins)
+library(magrittr)
+```
+
+```{r Tidy data}
+#Read in and tidy the data
+penguin <- penguins_raw %>%
+  janitor::clean_names()
+
+#Filter out rows which include missing values
+penguin <- penguin %>% 
+  filter(!is.na(body_mass_g))
+
+#Split the species name into two names, Common_name and Scientific_name
+penguin <- penguin %>% 
+  extract(species, 
+          c("common_name", "scientific_name"),
+          "([a-zA-Z]+\\s[a-zA-Z]+)\\s\\(([a-zA-Z]+\\s[a-zA-Z]+)\\)")
+```
+
+
+```{r Applying LDA to Penguin Data}
+#Conduct a Linear Discriminant Analysis on the penguin data
+#Result saved as LDA
+lda <- penguin %>% 
+  select(body_mass_g,
+         ends_with("_mm")) %>%
+  MASS::lda(grouping = penguin$common_name)
+
+#Identify the importance of each discriminant. This works similarly yo the PCA.
+lda$scaling
+#Predict() allows us to give the species predicted model for each observation. We use this to predict for the body mass variable within the penguin data set. 
+#This is saved a plda
+plda <- penguin %>% 
+  select(body_mass_g,
+         ends_with("_mm")) %>%
+  predict(object = lda)
+#Examine data using the conustion matrix 
+confusionMatrix(plda$class, factor(penguin$common_name))
+#To plot this data we need to use the scores on each of the new axes and colour them by species.
+lda_labelled <- data.frame(plda$x,
+                              common_name = penguin$common_name)
+#Create a Scatter Plot 
+lda_labelled %>% 
+  ggplot(aes(x = LD1, y = LD2, color = common_name)) +
+  geom_point()
+
+#Use Caret package to split the dataset in to training and testing sets using createDataPetition. Called ids
+ids <- createDataPartition(y = penguin$common_name,
+                           p = 0.75,
+                           list = FALSE)
+
+#Filter the dataset rows using slice. Called train (training set)
+train <- penguin %>% slice(ids)
+#Create test set. 
+test <- penguin %>% slice(-ids)
+
+#Perform LDA on training set.
+lda <- train %>%
+  select(body_mass_g,
+         ends_with("_mm")) %>%
+  MASS::lda(grouping = train$common_name)
+
+#Then predict Classes of the test data based on the lda model
+plda <- test %>%
+  select(body_mass_g,
+         ends_with("_mm")) %>%
+  predict(object = lda)
+
+#Examine the confusion matrix
+confusionMatrix(plda$class,factor(test$common_name))
+
+
+
+
+
+
+
+
+```
